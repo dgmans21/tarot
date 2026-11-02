@@ -230,7 +230,7 @@
           <span class="face back-face"></span>
           <span class="face front-face"><img src="${imgOf(c.id)}" alt="${esc(card.ko)}" loading="lazy"></span>
         </button>
-        <span class="pos">${i + 1}. ${sp.pos[i].name}</span>
+        <span class="pos"><b class="pnum">${i + 1}.</b> <span class="pname">${sp.pos[i].name}</span></span>
       </div>`;
     }).join('');
     $('reading').hidden = true;
@@ -241,14 +241,28 @@
   }
   $('spread-view').addEventListener('click', (e) => {
     const b = e.target.closest('.flip'); if (!b) return;
-    if (b.classList.contains('open')) {
-      // 뒤집힌 카드를 누르면 해당 풀이로 이동
-      document.getElementById(`card-reading-${b.dataset.i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      return;
-    }
+    if (b.classList.contains('open')) { openReadingCard(Number(b.dataset.i)); return; }
     b.classList.add('open');
     if (!$('spread-view').querySelector('.flip:not(.open)')) showReading(state.reading);
   });
+  // 뒤집힌 카드를 누르면 크게 보기 (작은 화면에서 켈틱 크로스 10장이 작게 보이거나, 2번 카드에 가려진 1번 카드를 볼 때)
+  function openReadingCard(i) {
+    const it = buildReading(state.reading).items[i]; if (!it) return;
+    const topicLabel = topicDef(state.reading.topic).label;
+    $('modal-body').innerHTML = `
+      <div class="big-card">
+        <img class="${it.rev ? 'rev' : ''}" src="${imgOf(it.card.id)}" alt="${esc(it.card.ko)}">
+        <div>
+          <p class="pos-name">${i + 1}. ${esc(it.pos.name)} <small>${esc(it.pos.about)}</small></p>
+          <h3>${esc(it.card.ko)} <span class="en">${esc(it.card.en)}</span> ${it.rev ? '<span class="badge rev">역방향</span>' : '<span class="badge">정방향</span>'}</h3>
+          <p class="kw">${esc(it.kw)}</p>
+          ${it.topicText ? `<p class="topic-text"><b>${topicLabel}</b> ${esc(it.topicText)}</p>` : ''}
+          <p class="base">${esc(it.base)}</p>
+        </div>
+      </div>`;
+    $('modal').hidden = false;
+    document.body.classList.add('no-scroll');
+  }
   $('flip-all').addEventListener('click', () => {
     $('spread-view').querySelectorAll('.flip').forEach((b, i) => setTimeout(() => b.classList.add('open'), i * 120));
     setTimeout(() => showReading(state.reading), state.reading.cards.length * 120 + 400);
@@ -382,6 +396,7 @@
     try { await navigator.clipboard.writeText(text); toast('풀이를 복사했어요. 원하는 곳에 붙여 넣으세요.'); }
     catch { toast('이 브라우저에서는 공유를 지원하지 않아요. txt로 저장해 주세요.'); }
   }
+  $('share-img').addEventListener('click', () => window.TarotShare?.open(state.reading));
   $('save-txt').addEventListener('click', () => download(`타로_${fileStamp(state.reading.date)}.txt`, readingText(state.reading)));
   $('share').addEventListener('click', () => share(readingText(state.reading)));
   $('again').addEventListener('click', () => { $('question').value = ''; state.topicManual = false; suggestTopic(); showStep('setup'); });
@@ -518,6 +533,25 @@
   // 첫 화면(home.js)에서 쓰는 기능
   window.TarotApp = {
     showTab, goHome,
+    // 공유 이미지에 들어갈 내용 (메모는 개인 내용이라 넣지 않음)
+    shareData(r) {
+      const { sp, items, summary } = buildReading(r);
+      const d = new Date(r.date), p = (n) => String(n).padStart(2, '0');
+      return {
+        bg: 'img/scene/board.webp',
+        topic: topicDef(r.topic).label,
+        spread: sp.label,
+        date: `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}`,
+        stamp: fileStamp(r.date),
+        url: location.protocol.startsWith('http') ? `${location.host}${location.pathname.replace(/index\.html$/, '')}` : '',
+        cards: items.map((it) => ({
+          pos: it.pos.name, name: it.card.ko, rev: it.rev, img: imgOf(it.card.id),
+          kw: it.kw.split(' · ').slice(0, 2).join(' · '),
+          line: it.topicText || it.base,
+        })),
+        summary: summary.slice(0, 2).join(' '),
+      };
+    },
     // 수정 구슬: 오늘의 한 장을 바로 뽑기
     quickOne() {
       state.topic = 'general'; state.spread = 'one'; $('question').value = '';

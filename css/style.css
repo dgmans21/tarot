@@ -117,7 +117,7 @@ textarea:focus { outline: 2px solid var(--gold-2); outline-offset: 1px; }
 .sv-celtic .slot { position: absolute; width: 16%; transform: translate(-50%, -50%); gap: 2px; }
 .sv-celtic .pos { position: absolute; top: 4px; left: 4px; z-index: 2; min-width: 1.6em; padding: 0 4px; border-radius: 6px;
   background: rgba(22, 18, 42, 0.85); color: var(--gold); font-size: 0.72rem; line-height: 1.5; }
-.sv-celtic .pos { font-size: 0; } .sv-celtic .pos::first-letter { font-size: 0.72rem; }
+.sv-celtic .pname { display: none; } /* 좁은 화면은 번호만, 넓은 화면은 이름까지 */
 .sv-celtic .slot-0 { left: 32%; top: 50%; }
 .sv-celtic .slot-1 { left: 32%; top: 50%; transform: translate(-50%, -50%) rotate(90deg); z-index: 3; }
 .sv-celtic .slot-2 { left: 32%; top: 26.5%; }
@@ -199,7 +199,7 @@ textarea:focus { outline: 2px solid var(--gold-2); outline-offset: 1px; }
   .modal { align-items: center; }
   .modal-box { border-radius: 18px; }
   .m-head { grid-template-columns: 150px 1fr; }
-  .sv-celtic .pos { font-size: 0.72rem; }
+  .sv-celtic .pname { display: inline; }
 }
 @media (prefers-reduced-motion: reduce) {
   .face, .back, .deck.shuffling .back { transition: none; animation: none; }
@@ -298,3 +298,22 @@ textarea:focus::placeholder { color: transparent; }
   .choices button { font-size: 0.78rem; padding: 2px 6px 2px 18px; border: 0; }
   .hs .tag { font-size: 0.7rem; padding: 0 6px; }
 }
+
+/* 이미지로 공유 */
+.share-box { max-width: 720px; }
+.share-title { margin: 0 0 14px; font: 800 1.15rem var(--serif); color: var(--gold); text-align: center; }
+.share-previews { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: end; }
+.share-previews figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.share-previews canvas { width: 100%; height: auto; max-height: 52vh; object-fit: contain; border-radius: 10px; background: #120d22; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); }
+.share-previews figcaption { font-weight: 700; color: var(--text); font-size: 0.9rem; }
+.share-previews figcaption small { color: var(--muted); font-weight: 400; margin-left: 4px; }
+.share-previews .btn { width: 100%; }
+.share-note { margin: 12px 0 0; text-align: center; color: var(--muted); font-size: 0.82rem; }
+
+/* 카드 크게 보기 */
+.big-card { display: grid; grid-template-columns: 1fr; gap: 14px; justify-items: center; }
+.big-card img { width: min(68vw, 300px); border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55); }
+.big-card img.rev { transform: rotate(180deg); }
+.big-card > div { width: 100%; }
+@media (min-width: 640px) { .big-card { grid-template-columns: 240px 1fr; align-items: start; } .big-card img { width: 240px; } }
+.flip.open { cursor: zoom-in; }
