@@ -71,10 +71,12 @@
     <!-- 2단계: 카드 고르기 -->
     <div id="step-pick" class="step" hidden>
       <p class="lead" id="pick-msg">카드를 골라 주세요.</p>
+      <p class="pick-hint">먼저 고른 카드부터 순서대로 1번 자리에 놓여요. 한 번 고른 카드는 바꿀 수 없지만, 잘못 눌렀다면 2초 안에 다시 누르면 취소돼요.</p>
       <div class="pick-bar">
         <button class="btn ghost" id="reshuffle">다시 섞기</button>
         <button class="btn ghost" id="auto-pick">대신 뽑아 주기</button>
       </div>
+      <div class="pick-tray" id="pick-tray" aria-label="고른 카드"></div>
       <div class="deck" id="deck" aria-label="뒤집힌 카드 78장"></div>
     </div>
 
@@ -141,15 +143,24 @@
       <figure>
         <canvas id="share-feed" aria-label="카톡·피드용 결과 이미지"></canvas>
         <figcaption>카톡·피드용 <small>1080×1350</small></figcaption>
-        <button class="btn primary" data-share="feed">공유하기</button>
+        <div class="share-btns" data-size="feed"></div>
       </figure>
       <figure>
         <canvas id="share-story" aria-label="스토리용 결과 이미지"></canvas>
         <figcaption>스토리용 <small>1080×1920</small></figcaption>
-        <button class="btn primary" data-share="story">공유하기</button>
+        <div class="share-btns" data-size="story"></div>
       </figure>
     </div>
     <p class="share-note" id="share-note"></p>
+    <!-- 크게 보기: 길게 눌러 저장·공유 -->
+    <div class="hold-view" id="hold-view" hidden>
+      <img id="hold-img" alt="공유용 결과 이미지">
+      <p>이미지를 <b>길게 눌러</b> 저장하거나 공유하세요.</p>
+      <div class="hold-btns">
+        <button class="btn" id="hold-external" hidden>다른 브라우저로 열기</button>
+        <button class="btn primary" id="hold-close">돌아가기</button>
+      </div>
+    </div>
   </div>
 </div>
 

@@ -182,24 +182,72 @@
     showStep('pick');
   }
   function renderDeck() {
-    const need = spreadDef().pos.length;
-    $('pick-msg').textContent = `카드 ${need}장을 골라 주세요. (${state.picked.length} / ${need})`;
     $('deck').innerHTML = state.deck.map((c, i) =>
-      `<button class="back${state.picked.includes(i) ? ' taken' : ''}" data-i="${i}" style="--d:${(i % 13) * 18}ms" aria-label="${i + 1}번째 카드"></button>`).join('');
+      `<button class="back" data-i="${i}" style="--d:${(i % 13) * 18}ms" aria-label="${i + 1}번째 카드"></button>`).join('');
     $('deck').classList.remove('shuffling'); void $('deck').offsetWidth; $('deck').classList.add('shuffling');
+    updatePicks();
+  }
+  // 고른 카드 표시: 덱에서는 금색 테두리 + 고른 순서 번호, 위쪽 칸에는 배열 자리별로 한 장씩 채움
+  function updatePicks() {
+    const sp = spreadDef(), need = sp.pos.length;
+    $('pick-msg').textContent = state.picked.length >= need
+      ? '카드를 모두 골랐어요.'
+      : `${sp.pos[state.picked.length].name} 카드를 골라 주세요. (${state.picked.length} / ${need})`;
+    $('deck').querySelectorAll('.back').forEach((b) => {
+      const k = state.picked.indexOf(Number(b.dataset.i));
+      b.classList.toggle('taken', k >= 0);
+      if (k >= 0) b.dataset.n = sp.pos.length > 5 ? `${k + 1}` : `${k + 1} ${sp.pos[k].name}`; else delete b.dataset.n;
+      b.setAttribute('aria-pressed', String(k >= 0));
+    });
+    $('pick-tray').className = `pick-tray${need > 5 ? ' many' : ''}`;
+    $('pick-tray').innerHTML = sp.pos.map((p, k) =>
+      `<span class="tray-slot${k < state.picked.length ? ' filled' : ''}${k === state.picked.length ? ' next' : ''}">
+        <span class="tray-card"></span><small>${need > 5 ? k + 1 : esc(p.name)}</small></span>`).join('');
+  }
+  // 타로는 처음 손이 간 카드를 존중하므로 한 번 고른 카드는 바꿀 수 없음.
+  // 다만 잘못 누른 경우를 위해, 방금 고른 카드만 UNDO_MS 안에 다시 누르면 취소됨
+  const UNDO_MS = 2000, FINISH_MS = 1500;
+  let lastPick = null; // { i, at }
+  let finishTimer = 0, undoTimer = 0;
+  function markUndoable(i) {
+    clearTimeout(undoTimer);
+    $('deck').querySelectorAll('.back.undoable').forEach((el) => el.classList.remove('undoable'));
+    const el = $('deck').querySelector(`[data-i="${i}"]`);
+    if (!el) return;
+    void el.offsetWidth; el.classList.add('undoable');
+    undoTimer = setTimeout(() => el.classList.remove('undoable'), UNDO_MS);
   }
   $('deck').addEventListener('click', (e) => {
     const b = e.target.closest('[data-i]'); if (!b) return;
     const i = Number(b.dataset.i);
-    if (state.picked.includes(i)) return;
-    state.picked.push(i);
-    b.classList.add('taken');
     const need = spreadDef().pos.length;
-    $('pick-msg').textContent = `카드 ${need}장을 골라 주세요. (${state.picked.length} / ${need})`;
-    if (state.picked.length >= need) setTimeout(finishPick, 350);
+    if (state.picked.includes(i)) {
+      if (lastPick && lastPick.i === i && Date.now() - lastPick.at < UNDO_MS) {
+        state.picked.pop();
+        lastPick = null;
+        clearTimeout(finishTimer); finishTimer = 0;
+        b.classList.remove('undoable');
+        $('pick-tray').classList.remove('complete');
+        updatePicks();
+        toast('방금 고른 카드를 취소했어요.');
+      } else {
+        toast('한 번 고른 카드는 바꿀 수 없어요. 처음부터 하려면 다시 섞기를 눌러 주세요.');
+      }
+      return;
+    }
+    if (state.picked.length >= need) return;
+    state.picked.push(i);
+    lastPick = { i, at: Date.now() };
+    updatePicks();
+    markUndoable(i);
+    if (state.picked.length >= need) {
+      $('pick-tray').classList.add('complete');
+      finishTimer = setTimeout(() => { finishTimer = 0; lastPick = null; finishPick(); }, FINISH_MS);
+    }
   });
-  $('reshuffle').addEventListener('click', startPick);
+  $('reshuffle').addEventListener('click', () => { clearTimeout(finishTimer); finishTimer = 0; lastPick = null; startPick(); });
   $('auto-pick').addEventListener('click', () => {
+    clearTimeout(finishTimer); finishTimer = 0;
     const need = spreadDef().pos.length;
     const left = shuffle([...state.deck.keys()].filter((i) => !state.picked.includes(i)));
     state.picked.push(...left.slice(0, need - state.picked.length));
@@ -230,7 +278,7 @@
           <span class="face back-face"></span>
           <span class="face front-face"><img src="${imgOf(c.id)}" alt="${esc(card.ko)}" loading="lazy"></span>
         </button>
-        <span class="pos"><b class="pnum">${i + 1}.</b> <span class="pname">${sp.pos[i].name}</span></span>
+        <span class="pos" title="${i + 1}. ${sp.pos[i].name}"><b class="pnum">${i + 1}.</b> <span class="pname">${sp.pos[i].name}</span></span>
       </div>`;
     }).join('');
     $('reading').hidden = true;
@@ -389,11 +437,12 @@
   }
   const fileStamp = (t) => fmtDate(t).replace(/[.: ]/g, (c) => (c === ' ' ? '_' : c === ':' ? '' : '-'));
   async function share(text) {
-    if (navigator.share) {
+    const pc = matchMedia('(hover: hover) and (pointer: fine)').matches;
+    if (navigator.share && !pc) {
       const url = location.protocol.startsWith('http') ? `\n\n${location.origin}${location.pathname}` : '';
       try { await navigator.share({ title: '오늘의 타로', text: text + url }); return; } catch (e) { if (e.name === 'AbortError') return; }
     }
-    try { await navigator.clipboard.writeText(text); toast('풀이를 복사했어요. 원하는 곳에 붙여 넣으세요.'); }
+    try { await navigator.clipboard.writeText(text); toast(pc ? '풀이를 복사했어요. 카카오톡 대화창에 Ctrl+V로 붙여 넣으세요.' : '풀이를 복사했어요. 원하는 곳에 붙여 넣으세요.'); }
     catch { toast('이 브라우저에서는 공유를 지원하지 않아요. txt로 저장해 주세요.'); }
   }
   $('share-img').addEventListener('click', () => window.TarotShare?.open(state.reading));
@@ -426,7 +475,8 @@
         </button>
         <span class="h-side">
           <button class="h-txt" aria-label="이 점괘 txt로 저장">txt</button>
-          <button class="h-share" aria-label="이 점괘 공유">공유</button>
+          <button class="h-img" aria-label="이 점괘 이미지로 공유">이미지</button>
+          <button class="h-share" aria-label="이 점괘 글로 공유">글 공유</button>
           <button class="h-del" aria-label="이 기록 삭제">삭제</button>
         </span>
       </li>`;
@@ -446,6 +496,7 @@
     }
     if (e.target.closest('.h-txt')) { download(`타로_${fileStamp(r.date)}.txt`, readingText(r)); return; }
     if (e.target.closest('.h-share')) { share(readingText(r)); return; }
+    if (e.target.closest('.h-img')) { window.TarotShare?.open(r); return; }
     if (e.target.closest('.h-del')) {
       // 실수 방지: 한 번 더 누르면 삭제
       const btn = e.target.closest('.h-del');
@@ -532,7 +583,7 @@
   route();
   // 첫 화면(home.js)에서 쓰는 기능
   window.TarotApp = {
-    showTab, goHome,
+    showTab, goHome, toast,
     // 공유 이미지에 들어갈 내용 (메모는 개인 내용이라 넣지 않음)
     shareData(r) {
       const { sp, items, summary } = buildReading(r);
