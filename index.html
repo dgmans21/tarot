@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16122a">
+<meta name="description" content="1909년 원판 타로 카드로 보는 간단한 타로점. 기록은 내 브라우저에만 저장됩니다.">
+<title>오늘의 타로</title>
+<link rel="icon" href="img/cards/major-17.webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="at-home">
+<!-- 첫 화면: 점술가의 방 (고전 어드벤처 게임 느낌) -->
+<section id="home" class="home" aria-label="점술가의 방">
+  <div class="scene" id="scene">
+    <img id="scene-img" alt="촛불이 켜진 점술가의 방. 후드를 쓴 점술가가 타로 카드가 놓인 테이블 앞에 앉아 있다.">
+    <div id="hotspots"></div>
+  </div>
+  <div class="dialog" id="dialog">
+    <p class="speaker">점술가</p>
+    <p class="line" id="dialog-line" aria-live="polite"></p>
+    <ul class="choices" id="choices">
+      <li><button data-go="read">카드를 펼친다</button></li>
+      <li><button data-go="one">오늘의 한 장을 뽑는다</button></li>
+      <li><button data-go="history">지난 점괘를 본다</button></li>
+      <li><button data-go="deck">카드 사전을 펼친다</button></li>
+    </ul>
+  </div>
+</section>
+
+<div class="table-bg" aria-hidden="true"></div>
+<header class="top">
+  <div class="top-row">
+    <button class="back-home" id="back-home" aria-label="점술가의 방으로">← 방으로</button>
+    <h1 class="logo">오늘의 타로</h1>
+    <span class="top-spacer"></span>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab" data-tab="read" aria-selected="true">점 보기</button>
+    <button class="tab" data-tab="history" aria-selected="false">기록</button>
+    <button class="tab" data-tab="deck" aria-selected="false">카드 사전</button>
+  </nav>
+</header>
+
+<main>
+  <!-- 점 보기 -->
+  <section id="tab-read" class="panel">
+    <!-- 1단계: 설정 -->
+    <div id="step-setup" class="step">
+      <p class="lead">마음을 가라앉히고, 알고 싶은 것을 떠올려 보세요.</p>
+
+      <h2 class="label">무엇이 궁금한가요?</h2>
+      <div class="chips" id="topics"></div>
+
+      <h2 class="label">카드 배열</h2>
+      <div class="spreads" id="spreads"></div>
+
+      <h2 class="label">나만의 메모 <small>(선택 · 나만 볼 수 있어요)</small></h2>
+      <textarea id="question" rows="2" maxlength="200" placeholder="기억하기 쉽게 메모를 남겨 보세요. 예: 이번 달 이직 준비는 어떻게 될까?"></textarea>
+      <p class="memo-hint" id="memo-hint">적은 메모는 점괘 기록에 함께 남아요. 메모 속 단어를 보고 어울리는 주제를 골라 드려요.</p>
+
+      <label class="toggle"><input type="checkbox" id="reversals" checked><span></span>역방향 카드 포함</label>
+
+      <button class="btn primary big" id="start">카드 섞기</button>
+    </div>
+
+    <!-- 2단계: 카드 고르기 -->
+    <div id="step-pick" class="step" hidden>
+      <p class="lead" id="pick-msg">카드를 골라 주세요.</p>
+      <div class="pick-bar">
+        <button class="btn ghost" id="reshuffle">다시 섞기</button>
+        <button class="btn ghost" id="auto-pick">대신 뽑아 주기</button>
+      </div>
+      <div class="deck" id="deck" aria-label="뒤집힌 카드 78장"></div>
+    </div>
+
+    <!-- 3단계: 결과 -->
+    <div id="step-result" class="step" hidden>
+      <div class="result-head">
+        <p class="meta" id="result-meta"></p>
+        <p class="question-view" id="result-question"></p>
+      </div>
+      <div class="spread-view" id="spread-view"></div>
+      <p class="hint" id="flip-hint">카드를 눌러 한 장씩 뒤집어 보세요.</p>
+      <button class="btn ghost" id="flip-all">모두 뒤집기</button>
+      <div id="reading" hidden></div>
+      <div class="actions" id="result-actions" hidden>
+        <button class="btn" id="save-txt">txt로 저장</button>
+        <button class="btn" id="share">공유하기</button>
+        <button class="btn primary" id="again">다시 보기</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 기록 -->
+  <section id="tab-history" class="panel" hidden>
+    <p class="lead">지금까지 본 타로 기록이에요. <small>이 기기의 이 브라우저에만 저장되고, 어디로도 보내지지 않아요.</small></p>
+    <div class="h-bar">
+      <label class="h-all"><input type="checkbox" id="select-all"> 전체 선택</label>
+      <span class="h-count" id="sel-count">선택 0개</span>
+    </div>
+    <div class="actions">
+      <button class="btn" id="export-sel" disabled>선택한 점괘 txt로 저장</button>
+      <button class="btn" id="share-sel" disabled>선택한 점괘 공유</button>
+      <button class="btn danger" id="clear-all">전체 삭제</button>
+    </div>
+    <ul class="history" id="history"></ul>
+  </section>
+
+  <!-- 카드 사전 -->
+  <section id="tab-deck" class="panel" hidden>
+    <div class="chips small" id="deck-filter"></div>
+    <div class="gallery" id="gallery"></div>
+  </section>
+</main>
+
+<!-- 카드 상세 -->
+<div class="modal" id="modal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true">
+    <button class="close" id="modal-close" aria-label="닫기">×</button>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<footer class="foot">
+  <p>카드 그림: Pamela Colman Smith, 1909년 원판 (퍼블릭 도메인, Wikimedia Commons) · 해설은 이 사이트를 위해 새로 쓴 글입니다.</p>
+  <p>타로는 재미와 자기 성찰을 위한 도구예요. 건강·법률·금전에 관한 중요한 결정은 전문가와 상의하세요.</p>
+</footer>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="js/cards-major.js"></script>
+<script src="js/cards-wands.js"></script>
+<script src="js/cards-cups.js"></script>
+<script src="js/cards-swords.js"></script>
+<script src="js/cards-pentacles.js"></script>
+<script src="js/app.js"></script>
+<script src="js/home.js"></script>
+</body>
+</html>

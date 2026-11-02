@@ -1,0 +1,8 @@
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+.vscode/
+
+# 원본 이미지(용량 큼)는 올리지 않음. 사이트는 img/scene/*.webp를 사용
+img/main/
