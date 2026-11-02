@@ -27,31 +27,53 @@
     },
   };
 
-  // 세로로 긴 화면이면 모바일 그림
-  const pick = () => (innerWidth / innerHeight < 0.85 ? 'mobile' : 'pc');
   let current = null;
 
+  // 화면 크기에 맞춰 그림 배치 계산
+  // 1) 클릭할 물건 네 개(+이름표 자리)가 대사창 위쪽 보이는 영역 안에 모두 들어오게 하고
+  // 2) 그 조건 안에서 화면을 최대한 꽉 채움. 다 못 채우면 남는 곳은 흐린 같은 그림이 채움
+  // 폴더블(접음·펼침), 가로로 눕힌 폰, 태블릿처럼 비율이 제각각인 화면을 위한 것
+  function layoutFor(sc, vw, vh, dlgH) {
+    const xs = sc.spots.map((p) => p.x), ys = sc.spots.map((p) => p.y);
+    const x0 = Math.min(...xs), x1 = Math.max(...sc.spots.map((p) => p.x + p.w));
+    const y0 = Math.min(...ys), y1 = Math.max(...sc.spots.map((p) => p.y + p.h));
+    const availH = Math.max(120, vh - dlgH - 10);
+    const sCover = Math.max(vw / sc.w, vh / sc.h);
+    // 이름표가 물건 위에 뜨므로 위쪽 여유를 조금 더
+    const sFit = Math.min((vw - 16) / (x1 - x0), (availH - 34) / (y1 - y0));
+    const s = Math.min(sCover, sFit);
+    const W = sc.w * s, H = sc.h * s;
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    let left = vw / 2 - cx * s, top = 34 / 2 + availH / 2 - cy * s;
+    left = W >= vw ? Math.min(0, Math.max(vw - W, left)) : (vw - W) / 2;
+    top = H >= vh ? Math.min(0, Math.max(vh - H, top)) : Math.min(vh - H, Math.max(0, top));
+    return { s, W, H, left, top, fill: s / sCover };
+  }
+
   function build() {
-    const key = pick();
-    const sc = SCENES[key];
+    const vw = innerWidth, vh = innerHeight;
+    const dlgH = $('dialog').getBoundingClientRect().height + 14;
+    // 두 그림 중 화면을 더 많이 채우는 쪽 (비슷하면 세로 화면은 모바일 그림)
+    const pc = layoutFor(SCENES.pc, vw, vh, dlgH), mo = layoutFor(SCENES.mobile, vw, vh, dlgH);
+    const portrait = vw / vh < 1;
+    const key = mo.fill + (portrait ? 0.08 : -0.08) >= pc.fill ? 'mobile' : 'pc';
+    const sc = SCENES[key], L = key === 'pc' ? pc : mo;
     const img = $('scene-img');
     if (current !== key) {
       current = key;
       img.src = sc.src;
-      $('hotspots').innerHTML = sc.spots.map((s) =>
-        `<button class="hs${s.round ? ' round' : ''}" data-go="${s.go}" style="left:${(s.x / sc.w) * 100}%;top:${(s.y / sc.h) * 100}%;width:${(s.w / sc.w) * 100}%;height:${(s.h / sc.h) * 100}%">
-          <span class="tag">${s.label}</span><span class="spark" aria-hidden="true"></span>
+      $('scene-bg').style.backgroundImage = `url("${sc.src}")`;
+      $('hotspots').innerHTML = sc.spots.map((p) =>
+        `<button class="hs${p.round ? ' round' : ''}" data-go="${p.go}" style="left:${(p.x / sc.w) * 100}%;top:${(p.y / sc.h) * 100}%;width:${(p.w / sc.w) * 100}%;height:${(p.h / sc.h) * 100}%">
+          <span class="tag">${p.label}</span><span class="spark" aria-hidden="true"></span>
         </button>`).join('');
     }
-    // 그림이 화면을 꽉 채우도록(넘치는 부분은 잘림) 크기와 위치를 계산. 물건 위치(%)도 같이 따라감
-    const vw = innerWidth, vh = innerHeight;
-    const s = Math.max(vw / sc.w, vh / sc.h);
     const el = $('scene');
-    el.style.width = `${sc.w * s}px`;
-    el.style.height = `${sc.h * s}px`;
-    // 폰에서는 그림의 아래쪽(대사창 자리)보다 가운데를 우선해서 보이게
-    el.style.left = `${(vw - sc.w * s) / 2}px`;
-    el.style.top = `${(vh - sc.h * s) / 2}px`;
+    el.style.width = `${L.W}px`;
+    el.style.height = `${L.H}px`;
+    el.style.left = `${L.left}px`;
+    el.style.top = `${L.top}px`;
+    document.body.classList.toggle('scene-letterbox', L.fill < 0.999);
   }
 
   // ── 대사 ────────────────────────────────────────────────
@@ -116,6 +138,8 @@
   });
 
   addEventListener('resize', build);
+  // 폴더블을 접거나 펼칠 때, 화면을 돌릴 때
+  screen.orientation?.addEventListener?.('change', () => setTimeout(build, 50));
   addEventListener('tarot:home', () => { build(); talk(); });
   if (document.body.classList.contains('at-home')) { build(); talk(); }
 })();

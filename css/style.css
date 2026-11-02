@@ -285,3 +285,16 @@ textarea:focus::placeholder { color: transparent; }
 .memo-hint { margin: 6px 2px 0; font-size: 0.82rem; color: var(--muted); }
 .memo-hint b { color: var(--gold); }
 .link-btn { margin-left: 4px; padding: 1px 8px; border: 1px solid var(--gold-2); border-radius: 999px; background: none; color: var(--gold); font-size: 0.8rem; }
+
+/* 화면 비율이 그림과 많이 다를 때(폴더블, 가로 폰 등) 남는 곳을 흐린 같은 그림으로 채움 */
+.scene-bg { position: absolute; inset: -40px; background: center / cover no-repeat; filter: blur(22px) brightness(0.45) saturate(1.1); }
+.scene { box-shadow: 0 0 60px 20px rgba(8, 5, 18, 0.6); }
+/* 높이가 낮은 화면(가로로 눕힌 폰 등): 대사창을 얇게 */
+@media (max-height: 520px) {
+  .dialog { grid-template-columns: 1fr auto; padding: 6px 12px; gap: 2px 12px; bottom: calc(8px + env(safe-area-inset-bottom)); }
+  .speaker { margin-top: -18px; font-size: 0.78rem; }
+  .line { min-height: 2.4em; font-size: 0.85rem; line-height: 1.45; }
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 6px; }
+  .choices button { font-size: 0.78rem; padding: 2px 6px 2px 18px; border: 0; }
+  .hs .tag { font-size: 0.7rem; padding: 0 6px; }
+}
