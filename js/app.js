@@ -111,8 +111,44 @@
   $('back-home').addEventListener('click', () => goHome());
   function route() {
     const h = location.hash.slice(1);
+    if (h.startsWith('r=')) { openLink(h.slice(2)); return; }
     if (['read', 'history', 'deck'].includes(h)) showTab(h, { push: false });
     else goHome({ push: false });
+  }
+
+  // ── 결과 링크 ───────────────────────────────────────────
+  // 점괘(주제·배열·날짜·카드)를 짧은 글자로 주소에 담음: #r=love.three.lx9k2a.0a-1kr-2f
+  // 카톡 안 브라우저에서 크롬·사파리로 넘길 때, 링크로 공유할 때 씀. 메모는 담지 않음
+  const IDX = Object.fromEntries(CARDS.map((c, i) => [c.id, i]));
+  function linkCode(r) {
+    const cards = r.cards.map((c) => IDX[c.id].toString(36).padStart(2, '0') + (c.rev ? 'r' : '')).join('-');
+    return `${r.topic}.${r.spread}.${Number(r.date).toString(36)}.${cards}`;
+  }
+  function readingLink(r) { return `${location.origin}${location.pathname}#r=${linkCode(r)}`; }
+  function parseLink(code) {
+    const [topic, spread, d36, cardStr] = decodeURIComponent(code).split('.');
+    const sp = SPREADS.find((s) => s.key === spread);
+    if (!TOPICS.some((t) => t.key === topic) || !sp || !cardStr) return null;
+    const cards = cardStr.split('-').map((t) => {
+      const i = parseInt(t.slice(0, 2), 36);
+      return CARDS[i] ? { id: CARDS[i].id, rev: t.endsWith('r') } : null;
+    });
+    if (cards.length !== sp.pos.length || cards.some((c) => !c)) return null;
+    const date = parseInt(d36, 36) || Date.now();
+    return { id: `link-${d36}-${cardStr}`, date, topic, spread, question: '', cards };
+  }
+  function openLink(code) {
+    const r = parseLink(code);
+    if (!r) { toast('결과 링크를 읽지 못했어요.'); goHome({ push: false }); return; }
+    // 이 브라우저의 기록에 없으면 추가 (같은 링크를 여러 번 열어도 한 번만)
+    const list = store.load();
+    if (!list.some((x) => x.id === r.id || (x.date === r.date && linkCode(x) === linkCode(r)))) {
+      list.unshift(r); list.sort((a, b) => b.date - a.date); store.save(list);
+    }
+    state.reading = r;
+    showTab('read', { push: false });
+    renderResult(r, true);
+    showStep('result');
   }
   window.addEventListener('popstate', route);
 
@@ -583,7 +619,7 @@
   route();
   // 첫 화면(home.js)에서 쓰는 기능
   window.TarotApp = {
-    showTab, goHome, toast,
+    showTab, goHome, toast, readingLink,
     // 공유 이미지에 들어갈 내용 (메모는 개인 내용이라 넣지 않음)
     shareData(r) {
       const { sp, items, summary } = buildReading(r);

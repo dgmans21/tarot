@@ -209,7 +209,7 @@
   const NOTES = {
     pc: () => (canCopyImage() ? '이미지 복사 후 카카오톡 대화창에서 Ctrl+V로 붙여 넣으세요.' : 'PNG로 저장한 뒤 보내고 싶은 곳에 올려 주세요.'),
     share: () => '공유 창에서 카카오톡 등 보낼 곳을 고르세요.',
-    hold: () => (isKakao ? '카카오톡 안에서는 바로 공유가 안 돼요. 이미지를 크게 띄운 뒤 길게 눌러 저장하거나, 다른 브라우저로 열어 주세요.'
+    hold: () => (isKakao ? '카카오톡 안에서는 저장·공유가 막혀 있어요. 「브라우저로 열어 저장」을 누르면 같은 점괘가 크롬·사파리에서 열리고, 거기서 저장·공유할 수 있어요.'
       : '이미지를 크게 띄운 뒤 길게 눌러 저장하거나 공유하세요.'),
   };
 
@@ -218,7 +218,7 @@
     const sets = {
       pc: [canCopyImage() && ['copy', '이미지 복사', 'primary'], ['save', 'PNG 저장', '']].filter(Boolean),
       share: [['share', '공유하기', 'primary'], ['view', '크게 보기', '']],
-      hold: [['view', '크게 보고 저장', 'primary']],
+      hold: isKakao ? [['external', '브라우저로 열어 저장', 'primary'], ['view', '크게 보기', '']] : [['view', '크게 보고 저장', 'primary']],
     };
     document.querySelectorAll('.share-btns').forEach((box) => {
       box.innerHTML = sets[m].map(([act, label, cls]) =>
@@ -277,9 +277,18 @@
 
   // 이미지를 크게 띄움: 길게 눌러 저장·공유 (거의 모든 휴대폰 브라우저에서 동작)
   function showHold(size) {
-    $('hold-img').src = current.files[size].url;
+    const f = current.files[size];
+    if (!f.dataUrl) { try { f.dataUrl = canvasOf(size).toDataURL('image/png'); } catch { f.dataUrl = f.url; } }
+    $('hold-img').src = f.dataUrl;
     $('hold-external').hidden = !isKakao;
     $('hold-view').hidden = false;
+  }
+
+  // 카카오톡 안의 브라우저 → 기본 브라우저(크롬·사파리)로 열기.
+  // 기록은 브라우저마다 따로라서, 점괘 내용을 담은 결과 링크로 넘김 (열리면 같은 점괘가 바로 보임)
+  function openExternal() {
+    const url = window.TarotApp.readingLink(current.reading);
+    location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(url)}`;
   }
 
   // 클릭 순간에 바로 실행되도록, 공유·복사 전에 기다리는 작업을 하지 않음
@@ -298,6 +307,7 @@
       return;
     }
     if (kind === 'view') { showHold(size); return; }
+    if (kind === 'external') { openExternal(); return; }
     // 저장
     const a = document.createElement('a');
     a.href = f.url; a.download = f.file.name;
@@ -307,11 +317,7 @@
 
   $('share-sheet').addEventListener('click', (e) => {
     if (e.target.closest('#hold-close')) { $('hold-view').hidden = true; return; }
-    if (e.target.closest('#hold-external')) {
-      // 카카오톡 안의 브라우저에서 기본 브라우저(크롬·사파리)로 열기
-      location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(location.href)}`;
-      return;
-    }
+    if (e.target.closest('#hold-external')) { openExternal(); return; }
     if (e.target === $('share-sheet') || e.target.closest('.close')) return close();
     const btn = e.target.closest('[data-act]');
     if (btn && !btn.disabled) act(btn.dataset.act, btn.dataset.size);
