@@ -39,7 +39,7 @@
   // 카드 한 장 (그림 + 테두리 + 그림자). 역방향은 거꾸로
   function drawCard(ctx, img, x, y, cw, ch, rev, radius) {
     ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 22; ctx.shadowOffsetY = 9;
+    ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 7;
     rr(ctx, x, y, cw, ch, radius); ctx.fillStyle = '#efe6cf'; ctx.fill();
     ctx.restore();
     ctx.save();
@@ -204,81 +204,93 @@
   };
   const canCopyImage = () => !!(navigator.clipboard?.write && window.ClipboardItem);
   const mode = () => (isPC() ? 'pc' : (!inApp && canShareFiles() ? 'share' : 'hold'));
-  let current = null;
   const note = (t) => { $('share-note').textContent = t; };
   const NOTES = {
-    pc: () => (canCopyImage() ? '이미지 복사 후 카카오톡 대화창에서 Ctrl+V로 붙여 넣으세요.' : 'PNG로 저장한 뒤 보내고 싶은 곳에 올려 주세요.'),
+    pc: () => (canCopyImage() ? '이미지 복사 후 카카오톡 대화창에서 Ctrl+V로 붙여 넣으세요.' : '이미지로 저장한 뒤 보내고 싶은 곳에 올려 주세요.'),
     share: () => '공유 창에서 카카오톡 등 보낼 곳을 고르세요.',
     hold: () => (isKakao ? '카카오톡 안에서는 저장·공유가 막혀 있어요. 「브라우저로 열어 저장」을 누르면 같은 점괘가 크롬·사파리에서 열리고, 거기서 저장·공유할 수 있어요.'
       : '이미지를 크게 띄운 뒤 길게 눌러 저장하거나 공유하세요.'),
   };
-
-  function renderButtons(enabled) {
-    const m = mode();
-    const sets = {
-      pc: [canCopyImage() && ['copy', '이미지 복사', 'primary'], ['save', 'PNG 저장', '']].filter(Boolean),
-      share: [['share', '공유하기', 'primary'], ['view', '크게 보기', '']],
-      hold: isKakao ? [['external', '브라우저로 열어 저장', 'primary'], ['view', '크게 보기', '']] : [['view', '크게 보고 저장', 'primary']],
-    };
-    document.querySelectorAll('.share-btns').forEach((box) => {
-      box.innerHTML = sets[m].map(([act, label, cls]) =>
-        `<button class="btn ${cls}" data-act="${act}" data-size="${box.dataset.size}" ${enabled ? '' : 'disabled'}>${label}</button>`).join('');
-    });
-    return m;
-  }
+  const BTN_SETS = () => ({
+    pc: [canCopyImage() && ['copy', '이미지 복사', 'primary'], ['save', '이미지 저장', '']].filter(Boolean),
+    share: [['share', '공유하기', 'primary'], ['view', '크게 보기', '']],
+    hold: isKakao ? [['external', '브라우저로 열어 저장', 'primary'], ['view', '크게 보기', '']] : [['view', '크게 보고 저장', 'primary']],
+  });
 
   const canvasOf = (size) => $(size === 'feed' ? 'share-feed' : 'share-story');
-  const fileName = (size) => `타로_${current.data.stamp}_${size === 'feed' ? '피드' : '스토리'}.png`;
-  const toBlob = (canvas) => new Promise((ok, no) => {
-    try { canvas.toBlob((bl) => (bl ? ok(bl) : no(new Error('empty'))), 'image/png'); } catch (e) { no(e); }
+  const toBlob = (canvas, type = 'image/jpeg', q = 0.92) => new Promise((ok, no) => {
+    try { canvas.toBlob((bl) => (bl ? ok(bl) : no(new Error('empty'))), type, q); } catch (e) { no(e); }
   });
   const FILE_PROTOCOL_MSG = '이미지 공유는 사이트 주소(https)로 열었을 때 사용할 수 있어요. 지금은 글로 공유나 txt 저장을 이용해 주세요.';
 
-  function releaseFiles() {
-    if (!current || !current.files) return;
-    for (const f of Object.values(current.files)) URL.revokeObjectURL(f.url);
+  // ── 미리 그려 두기 ──────────────────────────────────────
+  // 결과 화면이 뜨면 한가할 때 미리 그려 두고(prepare), 공유 창을 열면 준비된 것을 바로 보여 줌.
+  // 피드용을 먼저 끝내고 그 버튼부터 쓸 수 있게 한 뒤 스토리용을 그림.
+  // 파일은 JPG(빠르고 가벼움). PC의 이미지 복사만 누를 때 PNG로 만듦(클립보드가 PNG만 받음)
+  let job = null; // { id, reading, data, files: { feed, story }, error, promise }
+  const sheetOpen = () => !$('share-sheet').hidden;
+
+  function release(j) { if (j) for (const f of Object.values(j.files)) URL.revokeObjectURL(f.url); }
+
+  function prepare(reading) {
+    if (job && job.id === reading.id && !job.error) return job.promise;
+    release(job);
+    const j = { id: reading.id, reading, data: window.TarotApp.shareData(reading), files: {}, error: null };
+    job = j;
+    j.promise = (async () => {
+      for (const size of ['feed', 'story']) {
+        if (job !== j) return; // 다른 점괘로 바뀜
+        try {
+          await drawShareCard(canvasOf(size), j.data, size);
+          if (job !== j) return;
+          const blob = await toBlob(canvasOf(size));
+          const name = `타로_${j.data.stamp}_${size === 'feed' ? '피드' : '스토리'}.jpg`;
+          j.files[size] = { blob, file: new File([blob], name, { type: 'image/jpeg' }), url: URL.createObjectURL(blob) };
+        } catch (e) {
+          console.error(e);
+          j.error = location.protocol === 'file:' || e.name === 'SecurityError' ? FILE_PROTOCOL_MSG : '이미지를 그리지 못했어요. 카드 그림을 불러오지 못했을 수 있어요.';
+        }
+        if (job === j && sheetOpen()) refresh();
+        if (j.error) return;
+      }
+    })();
+    return j.promise;
   }
 
-  async function open(reading) {
-    releaseFiles();
-    current = { reading, data: window.TarotApp.shareData(reading), files: null };
-    const sheet = $('share-sheet');
-    sheet.hidden = false; document.body.classList.add('no-scroll');
+  // 버튼·안내를 지금 준비 상태에 맞게
+  function refresh() {
+    const m = mode(), sets = BTN_SETS()[m];
+    document.querySelectorAll('.share-btns').forEach((box) => {
+      const size = box.dataset.size, ready = !!(job && job.files[size]);
+      box.innerHTML = sets.map(([act, label, cls]) =>
+        `<button class="btn ${cls}" data-act="${act}" data-size="${size}" ${ready ? '' : 'disabled'}>${ready ? label : '그리는 중…'}</button>`).join('');
+    });
+    if (!job) return;
+    if (job.error) note(job.error);
+    else if (job.files.feed) note(`${NOTES[m]()} 메모는 이미지에 들어가지 않아요.`);
+    else note('그리는 중…');
+  }
+
+  function open(reading) {
+    $('share-sheet').hidden = false; document.body.classList.add('no-scroll');
     $('hold-view').hidden = true;
-    renderButtons(false);
-    note('그리는 중…');
-    try {
-      await drawShareCard($('share-feed'), current.data, 'feed');
-      await drawShareCard($('share-story'), current.data, 'story');
-    } catch (e) {
-      console.error(e);
-      note('이미지를 그리지 못했어요. 카드 그림을 불러오지 못했을 수 있어요.');
-      return;
-    }
-    // 공유·복사·저장에 쓸 파일을 미리 만들어 둠
-    try {
-      const files = {};
-      for (const size of ['feed', 'story']) {
-        const blob = await toBlob(canvasOf(size));
-        files[size] = { blob, file: new File([blob], fileName(size), { type: 'image/png' }), url: URL.createObjectURL(blob) };
-      }
-      current.files = files;
-    } catch {
-      note(FILE_PROTOCOL_MSG); // file:// 로 연 경우: 보안 정책 때문에 그림을 꺼낼 수 없음
-      return;
-    }
-    const m = renderButtons(true);
-    note(`${NOTES[m]()} 메모는 이미지에 들어가지 않아요.`);
+    prepare(reading);
+    refresh();
   }
   function close() {
     $('share-sheet').hidden = true; $('hold-view').hidden = true;
     document.body.classList.remove('no-scroll');
   }
+  // 결과 화면에서 미리 그리기 시작 (화면이 다 뜬 뒤 한가할 때)
+  function warm(reading) {
+    const go = () => { if (window.TarotApp) prepare(reading); };
+    if (window.requestIdleCallback) requestIdleCallback(go, { timeout: 2500 }); else setTimeout(go, 1200);
+  }
 
   // 이미지를 크게 띄움: 길게 눌러 저장·공유 (거의 모든 휴대폰 브라우저에서 동작)
   function showHold(size) {
-    const f = current.files[size];
-    if (!f.dataUrl) { try { f.dataUrl = canvasOf(size).toDataURL('image/png'); } catch { f.dataUrl = f.url; } }
+    const f = job.files[size];
+    if (!f.dataUrl) { try { f.dataUrl = canvasOf(size).toDataURL('image/jpeg', 0.92); } catch { f.dataUrl = f.url; } }
     $('hold-img').src = f.dataUrl;
     $('hold-external').hidden = !isKakao;
     $('hold-view').hidden = false;
@@ -287,16 +299,17 @@
   // 카카오톡 안의 브라우저 → 기본 브라우저(크롬·사파리)로 열기.
   // 기록은 브라우저마다 따로라서, 점괘 내용을 담은 결과 링크로 넘김 (열리면 같은 점괘가 바로 보임)
   function openExternal() {
-    const url = window.TarotApp.readingLink(current.reading);
+    const url = window.TarotApp.readingLink(job.reading);
     location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(url)}`;
   }
 
   // 클릭 순간에 바로 실행되도록, 공유·복사 전에 기다리는 작업을 하지 않음
   function act(kind, size) {
-    const f = current && current.files && current.files[size];
+    const f = job && job.files[size];
     if (!f) return;
     if (kind === 'copy') {
-      navigator.clipboard.write([new ClipboardItem({ 'image/png': f.blob })])
+      // 클립보드는 PNG만 받음. 누른 순간에 ClipboardItem을 만들고, PNG 변환은 약속(Promise)으로 넘김
+      navigator.clipboard.write([new ClipboardItem({ 'image/png': toBlob(canvasOf(size), 'image/png') })])
         .then(() => { note('이미지를 복사했어요. 카카오톡 대화창을 열고 Ctrl+V로 붙여 넣으세요.'); if (window.TarotApp.toast) window.TarotApp.toast('이미지를 복사했어요. 카톡 대화창에서 Ctrl+V'); })
         .catch((e) => { console.error(e); note('이 브라우저에서는 이미지 복사가 막혀 있어요. PNG 저장을 이용해 주세요.'); });
       return;
@@ -312,7 +325,7 @@
     const a = document.createElement('a');
     a.href = f.url; a.download = f.file.name;
     document.body.appendChild(a); a.click(); a.remove();
-    note('PNG 파일로 저장했어요. (다운로드 폴더)');
+    note('이미지 파일로 저장했어요. (다운로드 폴더)');
   }
 
   $('share-sheet').addEventListener('click', (e) => {
@@ -324,6 +337,6 @@
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('share-sheet').hidden) close(); });
 
-  window.TarotShare = { open, drawShareCard, isPC };
+  window.TarotShare = { open, warm, drawShareCard, isPC };
 
 })();

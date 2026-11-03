@@ -435,6 +435,7 @@
       </section>`;
     $('reading').hidden = false;
     $('result-actions').hidden = false;
+    window.TarotShare?.warm(r); // 공유 이미지 미리 그려 두기
     $('flip-all').hidden = true;
     $('flip-hint').hidden = true;
     void sp;

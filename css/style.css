@@ -130,7 +130,10 @@ textarea:focus { outline: 2px solid var(--gold-2); outline-offset: 1px; }
 .sv-celtic .slot-9 { left: 84%; top: 14%; }
 
 .hint { text-align: center; color: var(--muted); font-size: 0.9rem; margin: 10px 0 4px; }
-#flip-all { display: block; margin: 0 auto; }
+/* 모두 뒤집기: 다 뒤집기 전까지 화면 아래에 떠 있음 (10장 배열처럼 길어도 보이게) */
+.flip-all-bar { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 4; display: flex; justify-content: center; margin-top: 12px; pointer-events: none; }
+.flip-all-bar .btn { pointer-events: auto; padding: 12px 28px; border-radius: 999px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55), 0 0 0 3px rgba(22, 18, 42, 0.8); }
+.flip-all-bar:has(#flip-all[hidden]) { display: none; }
 
 /* 풀이 */
 #reading { margin-top: 24px; display: flex; flex-direction: column; gap: 12px; }
